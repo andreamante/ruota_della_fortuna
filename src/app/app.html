@@ -1,0 +1,477 @@
+<!-- Confetti & Celebration Canvas Overlay -->
+<canvas #confettiCanvas class="confetti-canvas"></canvas>
+
+<!-- Toast notification for sharing / link copying -->
+@if (shareToast()) {
+  <div class="toast-notification">
+    <span class="toast-icon">✨</span>
+    <span>{{ shareToast() }}</span>
+  </div>
+}
+
+<div class="casino-wrapper">
+  <!-- Vegas Marquee Header -->
+  <header class="casino-header">
+    <div class="header-left">
+      <div class="vegas-badge">
+        <span class="star">★</span> LAS VEGAS EDITION <span class="star">★</span>
+      </div>
+      <h1 class="header-title">
+        <span class="title-gold">RUOTA</span>
+        <span class="title-neon">DELLA</span>
+        <span class="title-gold">FORTUNA</span>
+      </h1>
+    </div>
+
+    <div class="header-actions">
+      <!-- Share Link Button -->
+      <button
+        class="casino-btn btn-share"
+        (click)="copyShareUrl()"
+        title="Salva e copia il link di questa ruota"
+      >
+        <span class="btn-icon">🔗</span>
+        <span class="btn-label">Salva / Condividi Link</span>
+      </button>
+
+      <!-- Sound Toggle Button -->
+      <button
+        class="casino-btn btn-icon-only"
+        (click)="soundService.toggleSound()"
+        [class.btn-active]="soundService.enabled()"
+        [title]="soundService.enabled() ? 'Disattiva Audio' : 'Attiva Audio'"
+      >
+        {{ soundService.enabled() ? '🔊' : '🔇' }}
+      </button>
+
+      <!-- Fullscreen Toggle Button -->
+      <button
+        class="casino-btn btn-icon-only"
+        (click)="toggleFullscreen()"
+        title="Schermo Intero"
+      >
+        ⛶
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Casino Arena Layout -->
+  <main class="casino-arena">
+    <!-- Left / Center: The Wheel Stage -->
+    <section class="wheel-stage">
+      <div class="stage-title-bar">
+        <input
+          type="text"
+          class="title-input"
+          [ngModel]="wheelTitle()"
+          (ngModelChange)="wheelTitle.set($event)"
+          placeholder="Dai un titolo alla tua Ruota..."
+        />
+        <div class="stage-sub">
+          <span class="badge active-badge">
+            {{ activeItemsCount() }} attive su {{ totalItemsCount() }}
+          </span>
+          @if (excludedItemsCount() > 0) {
+            <span class="badge excluded-badge">
+              {{ excludedItemsCount() }} escluse
+            </span>
+            <button
+              class="btn-text-action"
+              (click)="restoreAllExcluded()"
+              title="Riattiva tutte le voci escluse"
+            >
+              ↺ Ripristina tutte
+            </button>
+          }
+        </div>
+      </div>
+
+      <!-- Wheel and Lever Assembly -->
+      <div class="wheel-assembly">
+        <!-- Wheel Glow & Container -->
+        <div class="wheel-container">
+          <div class="wheel-glow-ring"></div>
+          <canvas #wheelCanvas class="wheel-canvas"></canvas>
+        </div>
+
+        <!-- Slot Machine Mechanical Lever -->
+        <div class="slot-lever-station" title="Tira la leva per girare la ruota!">
+          <div class="lever-label">LEVA SLOT</div>
+          <div
+            class="lever-assembly"
+            [class.lever-pulled]="isLeverPulled()"
+            (click)="triggerSpin()"
+          >
+            <div class="lever-mount"></div>
+            <div class="lever-arm">
+              <div class="lever-knob"></div>
+            </div>
+            <div class="lever-base"></div>
+          </div>
+          <div class="lever-hint">TIRA O PREMI</div>
+        </div>
+      </div>
+
+      <!-- Spin Controls & Force Selector -->
+      <div class="controls-panel">
+        <!-- Spin Force Selector -->
+        <div class="force-selector-section">
+          <div class="section-header">
+            <span class="section-title">⚡ FORZA DI LANCIO:</span>
+            <span class="current-force-name">
+              {{ currentForcePreset().icon }} {{ currentForcePreset().label }}
+              <small>({{ currentForcePreset().duration }}s • ~{{ currentForcePreset().baseRounds }} giri)</small>
+            </span>
+          </div>
+
+          <div class="force-presets-grid">
+            @for (p of forcePresets; track p.value) {
+              <button
+                class="force-btn"
+                [class.selected]="spinForce() === p.value"
+                [disabled]="isSpinning()"
+                (click)="spinForce.set(p.value); soundService.playClick()"
+              >
+                <span class="force-icon">{{ p.icon }}</span>
+                <span class="force-name">{{ p.label }}</span>
+                <span class="force-gauge-mini">
+                  @for (bar of [1, 2, 3, 4, 5]; track bar) {
+                    <span
+                      class="mini-bar"
+                      [class.lit]="bar <= p.value"
+                      [class.high]="bar > 3"
+                    ></span>
+                  }
+                </span>
+              </button>
+            }
+          </div>
+        </div>
+
+        <!-- Spin Action Bar -->
+        <div class="spin-action-row">
+          <!-- Big Casino Spin Button -->
+          <button
+            class="big-spin-btn"
+            [class.spinning]="isSpinning()"
+            [disabled]="isSpinning() || activeItemsCount() === 0"
+            (click)="triggerSpin()"
+          >
+            <span class="spin-btn-glow"></span>
+            <span class="spin-btn-inner">
+              @if (isSpinning()) {
+                <span class="spin-label spinning-text">GIRANDO... 🎰</span>
+              } @else {
+                <span class="spin-label">GIRA LA RUOTA! 🎲</span>
+              }
+            </span>
+          </button>
+
+          <!-- Auto Exclude Toggle Switch -->
+          <div class="auto-exclude-box">
+            <label class="switch-container">
+              <input
+                type="checkbox"
+                [checked]="autoExclude()"
+                (change)="autoExclude.set(!autoExclude())"
+              />
+              <span class="switch-slider"></span>
+              <span class="switch-label">
+                <strong>Escludi automatica voce estratta</strong>
+                <small>Rimuove il vincitore dai giri successivi</small>
+              </span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right: Management & History Sidebar -->
+    <aside class="casino-sidebar">
+      <!-- Tabs Navigation -->
+      <nav class="sidebar-tabs">
+        <button
+          class="tab-btn"
+          [class.active]="activeTab() === 'items'"
+          (click)="activeTab.set('items'); soundService.playClick()"
+        >
+          <span>🎯 Voci</span>
+          <span class="tab-badge">{{ activeItemsCount() }}</span>
+        </button>
+        <button
+          class="tab-btn"
+          [class.active]="activeTab() === 'history'"
+          (click)="activeTab.set('history'); soundService.playClick()"
+        >
+          <span>📜 Vincite</span>
+          @if (drawHistory().length > 0) {
+            <span class="tab-badge gold">{{ drawHistory().length }}</span>
+          }
+        </button>
+        <button
+          class="tab-btn"
+          [class.active]="activeTab() === 'settings'"
+          (click)="activeTab.set('settings'); soundService.playClick()"
+        >
+          <span>⚙️ Presets</span>
+        </button>
+      </nav>
+
+      <!-- Tab Content: Items -->
+      @if (activeTab() === 'items') {
+        <div class="tab-pane items-pane">
+          <!-- Add new item input -->
+          <div class="add-item-box">
+            <form (ngSubmit)="addItem()" class="add-form">
+              <input
+                type="text"
+                class="casino-input"
+                placeholder="Aggiungi una nuova voce..."
+                [ngModel]="newItemText()"
+                (ngModelChange)="newItemText.set($event)"
+                name="newItem"
+              />
+              <button type="submit" class="casino-btn btn-add" [disabled]="!newItemText().trim()">
+                + Aggiungi
+              </button>
+            </form>
+          </div>
+
+          <!-- Quick Actions Bar -->
+          <div class="items-actions-bar">
+            <button class="small-btn" (click)="openBulkModal()">
+              📋 Modifica in blocco
+            </button>
+            <button class="small-btn" (click)="shuffleItems()" [disabled]="items().length < 2">
+              🔀 Mischia
+            </button>
+            <button class="small-btn text-danger" (click)="clearAllItems()" [disabled]="items().length === 0">
+              🗑️ Svuota
+            </button>
+          </div>
+
+          <!-- Items Scrollable List -->
+          <div class="items-list">
+            @if (items().length === 0) {
+              <div class="empty-state">
+                <span class="empty-icon">🎡</span>
+                <p>Nessuna voce presente.</p>
+                <small>Aggiungi le tue voci o carica un preset da "Presets".</small>
+              </div>
+            } @else {
+              @for (item of items(); track item.id) {
+                <div class="item-card" [class.excluded]="!item.active">
+                  <div class="item-left">
+                    <span class="color-dot" [style.background-color]="item.color"></span>
+                    <!-- Active toggle checkbox -->
+                    <label class="checkbox-container" title="Attiva / Escludi voce">
+                      <input
+                        type="checkbox"
+                        [checked]="item.active"
+                        (change)="toggleItemActive(item.id)"
+                      />
+                      <span class="checkmark"></span>
+                    </label>
+                    <span class="item-text" [class.strikethrough]="!item.active">
+                      {{ item.text }}
+                    </span>
+                  </div>
+
+                  <div class="item-right">
+                    @if (!item.active) {
+                      <span class="item-status-tag">Esclusa</span>
+                    }
+                    <button
+                      class="btn-delete"
+                      (click)="removeItem(item.id)"
+                      title="Elimina voce"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              }
+            }
+          </div>
+        </div>
+      }
+
+      <!-- Tab Content: History -->
+      @if (activeTab() === 'history') {
+        <div class="tab-pane history-pane">
+          <div class="history-header">
+            <h3>Registro Estrazioni</h3>
+            @if (drawHistory().length > 0) {
+              <button class="small-btn" (click)="drawHistory.set([])">
+                Pulisci
+              </button>
+            }
+          </div>
+
+          <div class="history-list">
+            @if (drawHistory().length === 0) {
+              <div class="empty-state">
+                <span class="empty-icon">🏆</span>
+                <p>Nessuna estrazione ancora effettuata.</p>
+                <small>Gira la ruota per iniziare a sorteggiare!</small>
+              </div>
+            } @else {
+              @for (draw of drawHistory(); track draw.id; let idx = $index) {
+                <div class="history-card" [class.latest]="idx === 0">
+                  <div class="history-badge">#{{ drawHistory().length - idx }}</div>
+                  <div class="history-info">
+                    <div class="history-title" [style.color]="draw.color">
+                      {{ draw.text }}
+                    </div>
+                    <div class="history-meta">
+                      {{ draw.timestamp | date:'HH:mm:ss' }}
+                      @if (draw.excluded) {
+                        <span class="excluded-badge-mini">Esclusa</span>
+                      }
+                    </div>
+                  </div>
+                </div>
+              }
+            }
+          </div>
+        </div>
+      }
+
+      <!-- Tab Content: Presets & Share Settings -->
+      @if (activeTab() === 'settings') {
+        <div class="tab-pane settings-pane">
+          <h3 class="pane-section-title">🎰 Preset Veloci</h3>
+          <p class="pane-desc">Carica subito una ruota pronta per ogni occasione:</p>
+
+          <div class="preset-buttons-grid">
+            <button class="preset-card-btn" (click)="loadPreset('casino')">
+              <span class="p-icon">🎰</span>
+              <div class="p-info">
+                <strong>Casinò VIP Jackpot</strong>
+                <small>Premi stile slot machine</small>
+              </div>
+            </button>
+
+            <button class="preset-card-btn" (click)="loadPreset('cibo')">
+              <span class="p-icon">🍕</span>
+              <div class="p-info">
+                <strong>Cosa Mangiamo?</strong>
+                <small>Pizza, sushi, hamburger...</small>
+              </div>
+            </button>
+
+            <button class="preset-card-btn" (click)="loadPreset('party')">
+              <span class="p-icon">🎉</span>
+              <div class="p-info">
+                <strong>Party & Penitenze</strong>
+                <small>Giochi da festa divertenti</small>
+              </div>
+            </button>
+
+            <button class="preset-card-btn" (click)="loadPreset('numeri')">
+              <span class="p-icon">🔢</span>
+              <div class="p-info">
+                <strong>Numeri 1-12</strong>
+                <small>Sorteggio numerico standard</small>
+              </div>
+            </button>
+
+            <button class="preset-card-btn" (click)="loadPreset('decisioni')">
+              <span class="p-icon">🔮</span>
+              <div class="p-info">
+                <strong>Oracolo Decisionale</strong>
+                <small>Sì, No, Forse, Tenta la sorte</small>
+              </div>
+            </button>
+          </div>
+
+          <h3 class="pane-section-title" style="margin-top: 1.5rem;">🔗 Salva & Riutilizza</h3>
+          <p class="pane-desc">
+            Ogni modifica aggiorna automaticamente l'URL. Copia il link per inviarlo ad amici o salvarlo nei segnalibri!
+          </p>
+          <button class="casino-btn btn-share full-width" (click)="copyShareUrl()">
+            📋 Copia Link di Questa Ruota
+          </button>
+        </div>
+      }
+    </aside>
+  </main>
+</div>
+
+<!-- Jackpot Winner Modal -->
+@if (showWinnerModal() && selectedWinner(); as winner) {
+  <div class="jackpot-overlay" (click)="handleKeepWinner()">
+    <div class="jackpot-modal" (click)="$event.stopPropagation()">
+      <div class="jackpot-lights-border"></div>
+
+      <div class="jackpot-stars">★★★★★</div>
+      <div class="jackpot-tagline">JACKPOT VINCITORE!</div>
+
+      <div class="jackpot-winner-box">
+        <div class="winner-glow"></div>
+        <div class="winner-name" [style.color]="winner.color">
+          {{ winner.text }}
+        </div>
+      </div>
+
+      <div class="jackpot-stats">
+        <span>Voci rimaste attive: {{ activeItemsCount() }}</span>
+      </div>
+
+      <div class="jackpot-actions">
+        <!-- Exclude & Spin Again -->
+        <button
+          class="casino-btn btn-exclude-spin"
+          (click)="handleExcludeWinner()"
+          title="Esclude questa voce e la rimuove dalla ruota"
+        >
+          ❌ Escludi questa voce
+        </button>
+
+        <!-- Keep & Spin Again -->
+        <button
+          class="casino-btn btn-keep-spin"
+          (click)="handleSpinAgain()"
+          title="Mantieni la voce ed effettua subito un altro giro"
+        >
+          🎲 Gira Ancora
+        </button>
+
+        <!-- Close -->
+        <button class="casino-btn btn-close-modal" (click)="handleKeepWinner()">
+          Chiudi
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Bulk Edit Modal -->
+@if (showBulkModal()) {
+  <div class="bulk-overlay" (click)="showBulkModal.set(false)">
+    <div class="bulk-modal" (click)="$event.stopPropagation()">
+      <div class="bulk-header">
+        <h3>Modifica Voci in Blocco</h3>
+        <button class="btn-close" (click)="showBulkModal.set(false)">✕</button>
+      </div>
+      <p class="bulk-hint">
+        Inserisci o incolla una voce per riga. Le voci vuote verranno ignorate.
+      </p>
+      <textarea
+        class="bulk-textarea"
+        rows="10"
+        [ngModel]="bulkText()"
+        (ngModelChange)="bulkText.set($event)"
+        placeholder="Scrivi o incolla una voce per riga..."
+      ></textarea>
+      <div class="bulk-actions">
+        <button class="casino-btn btn-close-modal" (click)="showBulkModal.set(false)">
+          Annulla
+        </button>
+        <button class="casino-btn btn-add" (click)="saveBulkItems()">
+          Salva Voci
+        </button>
+      </div>
+    </div>
+  </div>
+}
