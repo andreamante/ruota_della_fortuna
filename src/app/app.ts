@@ -12,8 +12,6 @@ import { FormsModule } from '@angular/forms';
 import {
   CASINO_COLORS,
   DrawHistoryItem,
-  FORCE_PRESETS,
-  ForcePreset,
   WheelItem,
 } from './models/wheel.model';
 import { SoundService } from './services/sound.service';
@@ -45,7 +43,6 @@ export class App implements OnInit {
     { id: '8', text: '🍀 Trifoglio Fortunato', color: '#00F5D4', active: true },
   ]);
 
-  public spinForce = signal<number>(2); // Default 'Normale'
   public autoExclude = signal<boolean>(false);
   public isSpinning = signal<boolean>(false);
   public selectedWinner = signal<WheelItem | null>(null);
@@ -56,7 +53,13 @@ export class App implements OnInit {
   public bulkText = signal<string>('');
   public newItemText = signal<string>('');
   public shareToast = signal<string | null>(null);
-  public isLeverPulled = signal<boolean>(false);
+
+  // Dynamic Slot Lever Drag & Power State
+  public leverPullProgress = signal<number>(0); // 0.0 to 1.0
+  public isDraggingLever = signal<boolean>(false);
+  public isLeverSnapping = signal<boolean>(false);
+  private dragStartY = 0;
+  private lastTensionStep = -1;
 
   // Computed signals
   public activeItems = computed(() => this.items().filter((item) => item.active));
@@ -65,10 +68,18 @@ export class App implements OnInit {
   public excludedItemsCount = computed(
     () => this.items().filter((item) => !item.active).length
   );
-  public currentForcePreset = computed(
-    () => FORCE_PRESETS.find((p) => p.value === this.spinForce()) || FORCE_PRESETS[1]
-  );
-  public forcePresets = FORCE_PRESETS;
+
+  // Dynamic Lever calculations
+  public leverAngle = computed(() => this.leverPullProgress() * 68); // 0 to 68 deg
+  public powerPercentage = computed(() => Math.round(this.leverPullProgress() * 100));
+  public powerLabel = computed(() => {
+    const p = this.powerPercentage();
+    if (p === 0) return 'Tira la leva per caricare!';
+    if (p < 30) return '🍃 Lancio Delicato';
+    if (p < 60) return '🎯 Lancio Medio';
+    if (p < 85) return '⚡ Lancio Forte';
+    return '🔥 JACKPOT TURBO MAX!';
+  });
 
   // Animation & Physics Variables
   private currentAngle = 0; // Current rotation in radians
@@ -145,7 +156,6 @@ export class App implements OnInit {
     this.drawOuterBezel(ctx, center, radius + 22, radius);
 
     if (count === 0) {
-      // Empty wheel state
       this.drawEmptyWheel(ctx, center, radius);
       ctx.restore();
       this.drawPointer(ctx, center, 24);
@@ -170,7 +180,7 @@ export class App implements OnInit {
       ctx.arc(0, 0, radius, startAngle, endAngle);
       ctx.closePath();
 
-      // Slice gradient for 3D metallic casino depth
+      // Slice gradient for 3D metallic depth
       const midAngle = startAngle + arc / 2;
       const grad = ctx.createRadialGradient(0, 0, 10, 0, 0, radius);
       grad.addColorStop(0, '#ffffff');
@@ -206,7 +216,6 @@ export class App implements OnInit {
       const fontSize = Math.max(11, Math.min(18, Math.floor(340 / Math.max(8, count))));
       ctx.font = `bold ${fontSize}px 'Outfit', sans-serif`;
 
-      // Text truncation if too long
       let text = item.text;
       const maxTextWidth = radius - 70;
       if (ctx.measureText(text).width > maxTextWidth) {
@@ -244,13 +253,11 @@ export class App implements OnInit {
     outerR: number,
     innerR: number
   ): void {
-    // 1. Deep carbon bezel background
     ctx.beginPath();
     ctx.arc(center, center, outerR, 0, Math.PI * 2);
     ctx.fillStyle = '#100a1c';
     ctx.fill();
 
-    // 2. Multi-layer Gold Outer Ring
     const goldGrad = ctx.createLinearGradient(0, center - outerR, 0, center + outerR);
     goldGrad.addColorStop(0, '#FFF2A1');
     goldGrad.addColorStop(0.3, '#FFD700');
@@ -261,14 +268,12 @@ export class App implements OnInit {
     ctx.strokeStyle = goldGrad;
     ctx.stroke();
 
-    // 3. Inner golden rim
     ctx.beginPath();
     ctx.arc(center, center, innerR + 2, 0, Math.PI * 2);
     ctx.strokeStyle = '#D4AF37';
     ctx.lineWidth = 3;
     ctx.stroke();
 
-    // 4. Vegas Marquee Bulbs around rim
     const bulbCount = 24;
     const bulbRadius = (outerR + innerR) / 2;
 
@@ -289,7 +294,6 @@ export class App implements OnInit {
         ctx.fill();
         ctx.shadowBlur = 0;
 
-        // Inner filament
         ctx.beginPath();
         ctx.arc(bx, by, 2.5, 0, Math.PI * 2);
         ctx.fillStyle = '#FFFFFF';
@@ -320,13 +324,11 @@ export class App implements OnInit {
 
   private drawCenterHub(ctx: CanvasRenderingContext2D, center: number, hubRadius: number): void {
     ctx.save();
-    // Shadow under hub
     ctx.beginPath();
     ctx.arc(center, center, hubRadius + 4, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
     ctx.fill();
 
-    // Golden metallic hub
     const hubGrad = ctx.createLinearGradient(
       center - hubRadius,
       center - hubRadius,
@@ -346,7 +348,6 @@ export class App implements OnInit {
     ctx.lineWidth = 3;
     ctx.stroke();
 
-    // Inner ruby gem
     const rubyRadius = hubRadius * 0.65;
     const rubyGrad = ctx.createRadialGradient(
       center - 3,
@@ -368,7 +369,6 @@ export class App implements OnInit {
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    // Star icon inside ruby
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.font = 'bold 20px "Outfit", sans-serif';
@@ -383,14 +383,12 @@ export class App implements OnInit {
     ctx.translate(center, topOffset + 14);
     ctx.rotate(this.pointerDeflection);
 
-    // Pointer shadow
     ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
     ctx.shadowBlur = 8;
     ctx.shadowOffsetY = 3;
 
-    // Flipper Arrow body
     ctx.beginPath();
-    ctx.moveTo(0, 26); // Tip pointing down into the wheel
+    ctx.moveTo(0, 26);
     ctx.lineTo(-14, -14);
     ctx.lineTo(14, -14);
     ctx.closePath();
@@ -407,7 +405,6 @@ export class App implements OnInit {
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // Pointer pivot cap
     ctx.beginPath();
     ctx.arc(0, -12, 6, 0, Math.PI * 2);
     ctx.fillStyle = '#FFFFFF';
@@ -458,8 +455,107 @@ export class App implements OnInit {
     return `#${RR}${GG}${BB}`;
   }
 
+  // --- Interactive Slot Lever Drag Mechanics ---
+  public onLeverPointerDown(e: PointerEvent): void {
+    if (this.isSpinning()) return;
+
+    this.isDraggingLever.set(true);
+    this.isLeverSnapping.set(false);
+    this.dragStartY = e.clientY;
+    this.lastTensionStep = -1;
+
+    // Capture pointer events on window
+    window.addEventListener('pointermove', this.onPointerMove);
+    window.addEventListener('pointerup', this.onPointerUp);
+    window.addEventListener('pointercancel', this.onPointerUp);
+  }
+
+  private onPointerMove = (e: PointerEvent): void => {
+    if (!this.isDraggingLever()) return;
+
+    const deltaY = e.clientY - this.dragStartY;
+    // 160px drag stroke is 100% force
+    const maxStroke = 160;
+    const progress = Math.min(1.0, Math.max(0, deltaY / maxStroke));
+    this.leverPullProgress.set(progress);
+
+    // Audio tension ticks as lever is pulled deeper
+    const step = Math.floor(progress * 10);
+    if (step !== this.lastTensionStep && step > 0) {
+      this.soundService.playLeverTension(progress);
+      this.lastTensionStep = step;
+    }
+  };
+
+  private onPointerUp = (): void => {
+    if (!this.isDraggingLever()) return;
+
+    window.removeEventListener('pointermove', this.onPointerMove);
+    window.removeEventListener('pointerup', this.onPointerUp);
+    window.removeEventListener('pointercancel', this.onPointerUp);
+
+    this.isDraggingLever.set(false);
+    const finalForce = this.leverPullProgress();
+
+    // Snap lever back
+    this.isLeverSnapping.set(true);
+    this.soundService.playLeverSnap();
+    this.leverPullProgress.set(0);
+
+    setTimeout(() => {
+      this.isLeverSnapping.set(false);
+    }, 350);
+
+    if (finalForce >= 0.1) {
+      // Launch spin with the exact force pulled!
+      this.triggerSpin(finalForce);
+    } else {
+      // Just a light tap or click: auto-pull with medium-high power
+      this.animateAutoPullAndSpin(0.65);
+    }
+  };
+
+  // Called when clicking the Big Spin Button
+  public onBigSpinClick(): void {
+    if (this.isSpinning()) return;
+    this.animateAutoPullAndSpin(0.75);
+  }
+
+  private animateAutoPullAndSpin(targetPower: number): void {
+    this.soundService.playLeverPull();
+    this.isLeverSnapping.set(false);
+
+    // Smooth lever pull-down animation
+    let startTime: number | null = null;
+    const pullDuration = 220;
+
+    const stepPull = (timestamp: number) => {
+      if (!startTime) startTime = timestamp;
+      const elapsed = timestamp - startTime;
+      const t = Math.min(1, elapsed / pullDuration);
+      this.leverPullProgress.set(t * targetPower);
+
+      if (t < 1) {
+        requestAnimationFrame(stepPull);
+      } else {
+        // Snap back and spin!
+        this.isLeverSnapping.set(true);
+        this.soundService.playLeverSnap();
+        this.leverPullProgress.set(0);
+
+        setTimeout(() => {
+          this.isLeverSnapping.set(false);
+        }, 350);
+
+        this.triggerSpin(targetPower);
+      }
+    };
+
+    requestAnimationFrame(stepPull);
+  }
+
   // --- Wheel Spin Logic ---
-  public triggerSpin(forceLevel?: number): void {
+  public triggerSpin(forceRatio: number = 0.65): void {
     if (this.isSpinning()) return;
 
     const availableItems = this.activeItems();
@@ -469,43 +565,26 @@ export class App implements OnInit {
       return;
     }
 
-    if (forceLevel !== undefined) {
-      this.spinForce.set(forceLevel);
-    }
-
     this.isSpinning.set(true);
     this.showWinnerModal.set(false);
     this.selectedWinner.set(null);
 
-    // Mechanical Slot Lever Pull Animation & Sound
-    this.isLeverPulled.set(true);
-    this.soundService.playLeverPull();
-    setTimeout(() => {
-      this.isLeverPulled.set(false);
-    }, 450);
-
-    const preset = this.currentForcePreset();
-    const duration = preset.duration * 1000;
-    const baseRounds = preset.baseRounds;
+    // Dynamic duration and rounds calculated from pull force:
+    // forceRatio is between 0.1 (gentle) and 1.0 (super jackpot turbo)
+    const clampedForce = Math.max(0.12, Math.min(1.0, forceRatio));
+    const duration = (3.2 + clampedForce * 9.5) * 1000; // 4.3s to 12.7s
+    const baseRounds = Math.round(4 + clampedForce * 18); // 6 to 22 rounds
 
     // Pick a winning index uniformly at random
     const winningIndex = Math.floor(Math.random() * availableItems.length);
     const count = availableItems.length;
     const arc = (2 * Math.PI) / count;
 
-    // The pointer is at 12 o'clock (-Math.PI / 2)
-    // To land on winningIndex, the slice's center angle at the end must align with 12 o'clock.
-    // Random angle inside the slice for natural randomness (avoiding the exact dividing peg)
+    const pointerAngle = -Math.PI / 2;
     const margin = arc * 0.15;
     const randomOffsetInSlice = margin + Math.random() * (arc - 2 * margin);
-
-    // Target slice angle in local wheel coords: winningIndex * arc + randomOffsetInSlice
-    // When wheel rotates by totalDelta, pointer (-Math.PI/2) touches:
-    // pointerAngle - (currentAngle + totalDelta) = targetLocalAngle (mod 2pi)
-    const pointerAngle = -Math.PI / 2;
     const targetSliceAngle = winningIndex * arc + randomOffsetInSlice;
 
-    // Normalize currentAngle to [0, 2pi)
     const normalizedStart = ((this.currentAngle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
     let targetAngle = pointerAngle - targetSliceAngle;
     targetAngle = ((targetAngle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
@@ -515,12 +594,10 @@ export class App implements OnInit {
       angleDiff += 2 * Math.PI;
     }
 
-    // Total rotation = base full rotations + angle diff
     const totalRotation = baseRounds * 2 * Math.PI + angleDiff;
     const startAngle = this.currentAngle;
     const startTime = performance.now();
 
-    // Quartic ease out for thrilling suspense at the final pegs
     const easeOutQuartic = (x: number): number => 1 - Math.pow(1 - x, 4);
 
     this.lastTickSegment = -1;
@@ -532,14 +609,11 @@ export class App implements OnInit {
 
       this.currentAngle = startAngle + totalRotation * easedProgress;
 
-      // Faster marquee bulb lights during spin
       this.bulbPhase = Math.floor(elapsed / 70) % 4;
 
-      // Calculate instantaneous speed for peg tick audio & pointer deflection
       const remainingProgress = 1 - progress;
       const speedMultiplier = Math.pow(remainingProgress, 2.5);
 
-      // Check current peg under pointer
       const currentWheelNorm = ((this.currentAngle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
       const relativeAngle = ((pointerAngle - currentWheelNorm) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
       const currentSegment = Math.floor(relativeAngle / arc);
@@ -549,7 +623,6 @@ export class App implements OnInit {
         this.pointerDeflection = (Math.random() > 0.5 ? 0.35 : -0.35) * Math.min(1, speedMultiplier + 0.3);
         this.lastTickSegment = currentSegment;
       } else {
-        // Spring back pointer
         this.pointerDeflection *= 0.82;
       }
 
@@ -558,7 +631,6 @@ export class App implements OnInit {
       if (progress < 1) {
         this.animationFrameId = requestAnimationFrame(animateSpin);
       } else {
-        // Spin finished!
         this.pointerDeflection = 0;
         this.isSpinning.set(false);
         this.drawWheel();
@@ -573,11 +645,9 @@ export class App implements OnInit {
     this.selectedWinner.set(winner);
     this.showWinnerModal.set(true);
 
-    // Play victory sound & launch confetti shower
     this.soundService.playWinFanfare();
     this.confettiService.launchJackpotCelebration();
 
-    // Record into history
     const historyItem: DrawHistoryItem = {
       id: Math.random().toString(36).substring(2, 9),
       text: winner.text,
@@ -587,7 +657,6 @@ export class App implements OnInit {
     };
     this.drawHistory.update((h) => [historyItem, ...h]);
 
-    // Handle auto-exclusion
     if (this.autoExclude()) {
       this.excludeItem(winner.id);
     }
@@ -684,7 +753,6 @@ export class App implements OnInit {
     if (winner) {
       this.excludeItem(winner.id);
       this.soundService.playEliminate();
-      // Update history item exclusion status
       this.drawHistory.update((h) =>
         h.map((item, idx) => (idx === 0 ? { ...item, excluded: true } : item))
       );
@@ -695,7 +763,7 @@ export class App implements OnInit {
   public handleSpinAgain(): void {
     this.showWinnerModal.set(false);
     setTimeout(() => {
-      this.triggerSpin();
+      this.animateAutoPullAndSpin(0.7);
     }, 200);
   }
 
@@ -811,7 +879,6 @@ export class App implements OnInit {
         a: it.active ? 1 : 0,
       })),
       ae: this.autoExclude() ? 1 : 0,
-      f: this.spinForce(),
     };
 
     const json = JSON.stringify(payload);
@@ -854,7 +921,6 @@ export class App implements OnInit {
         const payload = JSON.parse(decoded);
 
         if (payload.t) this.wheelTitle.set(payload.t);
-        if (payload.f) this.spinForce.set(payload.f);
         if (payload.ae !== undefined) this.autoExclude.set(payload.ae === 1);
 
         if (Array.isArray(payload.i) && payload.i.length > 0) {
@@ -877,7 +943,6 @@ export class App implements OnInit {
     }
   }
 
-  // Fullscreen support
   public toggleFullscreen(): void {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen().catch(() => {});

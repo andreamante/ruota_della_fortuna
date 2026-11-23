@@ -65,6 +65,70 @@ export class SoundService {
     }
   }
 
+  public playLeverTension(level: number = 0.5): void {
+    if (!this.enabled()) return;
+    const ctx = this.getAudioContext();
+    if (!ctx) return;
+
+    try {
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      const freq = 180 + Math.min(1, Math.max(0, level)) * 320;
+      osc.frequency.setValueAtTime(freq, now);
+      osc.frequency.exponentialRampToValueAtTime(80, now + 0.035);
+
+      gain.gain.setValueAtTime(0.18, now);
+      gain.gain.exponentialRampToValueAtTime(0.005, now + 0.035);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.04);
+    } catch {
+      // ignore
+    }
+  }
+
+  public playLeverSnap(): void {
+    if (!this.enabled()) return;
+    const ctx = this.getAudioContext();
+    if (!ctx) return;
+
+    try {
+      const now = ctx.currentTime;
+      // Fast spring twang
+      const twang = ctx.createOscillator();
+      const twangGain = ctx.createGain();
+      twang.type = 'triangle';
+      twang.frequency.setValueAtTime(450, now);
+      twang.frequency.exponentialRampToValueAtTime(120, now + 0.08);
+      twangGain.gain.setValueAtTime(0.25, now);
+      twangGain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+      twang.connect(twangGain);
+      twangGain.connect(ctx.destination);
+      twang.start(now);
+      twang.stop(now + 0.1);
+
+      // Heavy slot machine clunk
+      const clunk = ctx.createOscillator();
+      const clunkGain = ctx.createGain();
+      const releaseTime = now + 0.04;
+      clunk.type = 'sine';
+      clunk.frequency.setValueAtTime(160, releaseTime);
+      clunk.frequency.exponentialRampToValueAtTime(35, releaseTime + 0.15);
+      clunkGain.gain.setValueAtTime(0.35, releaseTime);
+      clunkGain.gain.exponentialRampToValueAtTime(0.001, releaseTime + 0.16);
+      clunk.connect(clunkGain);
+      clunkGain.connect(ctx.destination);
+      clunk.start(releaseTime);
+      clunk.stop(releaseTime + 0.18);
+    } catch {
+      // ignore
+    }
+  }
+
   public playLeverPull(): void {
     if (!this.enabled()) return;
     const ctx = this.getAudioContext();

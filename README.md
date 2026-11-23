@@ -32,15 +32,14 @@ Un'applicazione web moderna, spettacolare e reattiva realizzata in **Angular**, 
 - **Registro Estrazioni (Cronologia)**: Consulta tutte le vincite precedenti con timestamp e indicazione dello stato.
 - **Pulsante "Ripristina Tutte"**: Consente di reintegrare istantaneamente tutte le voci escluse con un solo clic.
 
-### 4. ⚡ Regolazione della Forza di Lancio
-- **5 Livelli di Potenza**:
-  1. 🍃 **Delicato**: ~3.5s, 4 giri completi
-  2. 🎯 **Normale**: ~5.5s, 7 giri completi
-  3. ⚡ **Energico**: ~8.0s, 11 giri completi
-  4. 🎰 **Jackpot**: ~11.0s, 16 giri completi
-  5. 🔥 **Turbo Max**: ~14.0s, 22 giri completi
-- **Fisica di decelerazione realistica**: Curva quartica di frenata con suspense crescente negli ultimi spicchi prima dell'arresto.
-- **Leva Meccanica della Slot Machine**: Include una leva 3D interattiva con pomello rosso lucido che si abbassa con effetto molla al tocco o al clic.
+### 4. 🎰 Leva Slot Machine con Forza Dinamica a Trascinamento (Drag-to-Spin)
+- **Tiro Continuo e Flessibile**: I bottoni statici sono stati rimossi in favore di una vera **Leva Meccanica Interattiva da Casinò**.
+- **Fisica basata sulla corsa della leva**:
+  - Clicca o tocca il pomello rosso della leva e **trascinalo verso il basso**: l'angolo della leva si inclina fisicamente e in tempo reale.
+  - **Indicatore LED Verticale (Power Gauge)**: 10 segmenti LED ad alta intensità si illuminano progressivamente da Verde (Delicato) a Giallo (Medio), Arancione (Forte) fino a Rosso/Viola lampeggiante (**JACKPOT TURBO MAX**).
+  - **Feedback sonoro di tensione**: Mentre tiri la leva, senti i cricchetti meccanici della molla che aumentano di tono.
+  - **Rilascio e Scatto**: Rilasciando la leva, questa scatta indietro con effetto rimbalzo a molla e suono di impatto metallico, trasmettendo alla ruota l'impulso corrispondente alla profondità del tiro (giri completi, velocità angolare e durata di rotazione proporzionali alla forza impressa).
+  - Un semplice clic rapido sulla leva o sul pulsante "LANCIO CASINÒ!" avvia una tirata automatica fluida e potente.
 
 ### 5. 💎 Grafica & Sonoro stile Casinò / Slot
 - **Cornice Marquee con Lampadine Animate**: 24 lampadine LED stile insegna di Las Vegas che lampeggiano a ritmo alternato e accelerano durante la rotazione.

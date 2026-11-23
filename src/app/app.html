@@ -94,75 +94,93 @@
           <canvas #wheelCanvas class="wheel-canvas"></canvas>
         </div>
 
-        <!-- Slot Machine Mechanical Lever -->
-        <div class="slot-lever-station" title="Tira la leva per girare la ruota!">
-          <div class="lever-label">LEVA SLOT</div>
-          <div
-            class="lever-assembly"
-            [class.lever-pulled]="isLeverPulled()"
-            (click)="triggerSpin()"
-          >
-            <div class="lever-mount"></div>
-            <div class="lever-arm">
-              <div class="lever-knob"></div>
+        <!-- Interactive Drag-to-Spin Slot Machine Lever Station -->
+        <div class="slot-lever-station" [class.dragging]="isDraggingLever()">
+          <div class="lever-header">
+            <span class="lever-badge">LEVA SLOT</span>
+          </div>
+
+          <div class="lever-and-gauge-row">
+            <!-- Vertical Power Gauge / VU-Meter -->
+            <div class="power-gauge-column" title="Potenza di tiro della leva">
+              <div class="gauge-title">POTENZA</div>
+              <div class="gauge-bars">
+                @for (seg of [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]; track seg) {
+                  <div
+                    class="gauge-seg"
+                    [class.active]="powerPercentage() >= (seg * 10 - 5)"
+                    [class.lvl-turbo]="seg >= 9"
+                    [class.lvl-strong]="seg >= 6 && seg < 9"
+                    [class.lvl-med]="seg >= 4 && seg < 6"
+                    [class.lvl-low]="seg < 4"
+                  ></div>
+                }
+              </div>
+              <div class="gauge-value">{{ powerPercentage() }}%</div>
             </div>
-            <div class="lever-base"></div>
-          </div>
-          <div class="lever-hint">TIRA O PREMI</div>
-        </div>
-      </div>
 
-      <!-- Spin Controls & Force Selector -->
-      <div class="controls-panel">
-        <!-- Spin Force Selector -->
-        <div class="force-selector-section">
-          <div class="section-header">
-            <span class="section-title">⚡ FORZA DI LANCIO:</span>
-            <span class="current-force-name">
-              {{ currentForcePreset().icon }} {{ currentForcePreset().label }}
-              <small>({{ currentForcePreset().duration }}s • ~{{ currentForcePreset().baseRounds }} giri)</small>
-            </span>
-          </div>
-
-          <div class="force-presets-grid">
-            @for (p of forcePresets; track p.value) {
-              <button
-                class="force-btn"
-                [class.selected]="spinForce() === p.value"
-                [disabled]="isSpinning()"
-                (click)="spinForce.set(p.value); soundService.playClick()"
+            <!-- The Mechanical Slot Lever -->
+            <div class="lever-track-area">
+              <div
+                class="lever-assembly"
+                [class.lever-snapping]="isLeverSnapping()"
+                (pointerdown)="onLeverPointerDown($event)"
               >
-                <span class="force-icon">{{ p.icon }}</span>
-                <span class="force-name">{{ p.label }}</span>
-                <span class="force-gauge-mini">
-                  @for (bar of [1, 2, 3, 4, 5]; track bar) {
-                    <span
-                      class="mini-bar"
-                      [class.lit]="bar <= p.value"
-                      [class.high]="bar > 3"
-                    ></span>
-                  }
-                </span>
-              </button>
+                <div class="lever-mount"></div>
+                <div
+                  class="lever-arm"
+                  [style.transform]="'rotate(' + leverAngle() + 'deg)'"
+                >
+                  <div class="lever-knob">
+                    <span class="knob-sheen"></span>
+                  </div>
+                </div>
+                <div class="lever-base"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Dynamic Power Status & Action Cue -->
+          <div class="lever-footer-cue">
+            @if (isDraggingLever()) {
+              <div class="drag-live-label" [class.jackpot]="powerPercentage() >= 85">
+                {{ powerLabel() }}
+              </div>
+            } @else {
+              <div class="drag-hint">
+                <span class="drag-arrow">⬇️</span> TRASCINA GIÙ
+              </div>
             }
           </div>
         </div>
+      </div>
 
-        <!-- Spin Action Bar -->
+      <!-- Tactical Spin Bar & Instructions -->
+      <div class="controls-panel">
+        <!-- Interactive Instruction Strip -->
+        <div class="tactile-instruction-strip">
+          <span class="strip-icon">🎰</span>
+          <div class="strip-text">
+            <strong>Trascina la leva verso il basso e rilasciala con la forza desiderata!</strong>
+            <small>Più in basso la tiri, più velocemente e a lungo girerà la ruota.</small>
+          </div>
+        </div>
+
+        <!-- Spin Action Row -->
         <div class="spin-action-row">
           <!-- Big Casino Spin Button -->
           <button
             class="big-spin-btn"
             [class.spinning]="isSpinning()"
             [disabled]="isSpinning() || activeItemsCount() === 0"
-            (click)="triggerSpin()"
+            (click)="onBigSpinClick()"
           >
             <span class="spin-btn-glow"></span>
             <span class="spin-btn-inner">
               @if (isSpinning()) {
                 <span class="spin-label spinning-text">GIRANDO... 🎰</span>
               } @else {
-                <span class="spin-label">GIRA LA RUOTA! 🎲</span>
+                <span class="spin-label">LANCIO CASINÒ! 🎲</span>
               }
             </span>
           </button>
@@ -263,7 +281,6 @@
                 <div class="item-card" [class.excluded]="!item.active">
                   <div class="item-left">
                     <span class="color-dot" [style.background-color]="item.color"></span>
-                    <!-- Active toggle checkbox -->
                     <label class="checkbox-container" title="Attiva / Escludi voce">
                       <input
                         type="checkbox"
